@@ -5,18 +5,11 @@ LLMs course (https://maven.com/parlance-labs/fine-tuning)
 Notebooks from the course: https://github.com/parlance-labs/ftcourse
 
 The queries.csv dataset contains ~ 2,300 example queries (along with column
-schemas generated offline via RAG). To evaluate a random subset of 200 queries
-using a variety of models:
+schemas generated offline via RAG). There are two scoring methods supported
+(corresponding to the two @task definitions below):
 
-inspect eval queries.py --model openai/gpt-4-turbo --limit 200
-inspect eval queries.py --model hf/google/gemma-2b --limit 200
-inspect eval queries.py --model ollma/llama3 --limit 200
-
-By default, scoring is done using the validity checker from the course (see
-validate.py). You can instead use the critique prompt presented in the course
-by specifying the 'critique' task parameter, for example:
-
-inspect eval queries.py --model ollma/llama3 --limit 25 -T critique=true
+1. @validate - score using the validity checker from the course (validate.py)
+2. @critique - score using the critique prompt from the course (critique.txt)
 """
 
 import json
@@ -33,7 +26,17 @@ from validate import is_valid
 
 
 @task
-def queries(critique = False):
+def validate():
+    return eval_task(scorer=validate_scorer())
+
+
+@task
+def critique():
+    return eval_task(scorer=critique_scorer())
+
+
+# shared task implementation parmaeterized by scorer
+def eval_task(scorer):
 
     # read dataset
     dataset = csv_dataset(
@@ -44,9 +47,6 @@ def queries(critique = False):
         ),
         shuffle=True
     )
-
-    # decide on the type of scorer to use
-    scorer = critique_scorer() if critique else validation_scorer()
 
     # create eval task
     return Task(
@@ -78,7 +78,7 @@ def prompt_with_schema():
 
 
 @scorer(metrics=[accuracy()])
-def validation_scorer():
+def validate_scorer():
 
     async def score(state, target):
        
