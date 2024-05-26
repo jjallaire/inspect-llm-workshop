@@ -1,6 +1,6 @@
 ## LangChain Agent
 
-This example demonstrates creating a custom solver that utilises a LangChain agent to perform Q and A using Wikipedia. The example includes the following source files:
+This example demonstrates creating a custom solver that utilises a LangChain agent to perform QA using Wikipedia. The example includes the following source files:
 
 | File                   | Description                                                                                     |
 |------------------------|-------------------------------------------------------------------------------------------------|
@@ -12,7 +12,7 @@ This example demonstrates creating a custom solver that utilises a LangChain age
 
 To run this example, first, be sure you provide a `.env` file that defines a `TAVILY_API_KEY` ([Tavily](https://tavily.com/) is a search API for LLM agents). Note that `.env` files should always be included in `.gitignore` as they often contain secrets!
 
-Next, create a virtual environment and install the required dependencies:
+Next, be sure that you have installed the dependencies in the `requirements.txt` file in the root of this repository. To do this in a virtual environment:
 
 ``` bash
 $ python3 -m venv .venv
@@ -20,9 +20,10 @@ $ source .venv/bin/activate
 $ pip install -r requirements.txt
 ```
 
-Now you should be able to run the example as follows:
+Then, switch to the `langchain` directory and run the example as follows:
 
 ``` python
+$ cd langchain
 $ inspect eval --model openai/gpt-4 
 ```
 
