@@ -47,7 +47,7 @@ When the user input is asking about a time range (such as "yesterday" or "since 
 always use the time_range, start_time, and end_time fields. time_range
 is relative and can be combined with either start_time or end_time but not both.
 
-Modify existing query or create a new query based on NLQ. Only include the query in your response (do not include any additional text before or after the JSON query).
+Modify existing query or create a new query based on NLQ. Only include the query in your response (do not include any additional text before or after the query).
 
 NLQ: Exception count by exception and caller
 EXISTING QUERY:
