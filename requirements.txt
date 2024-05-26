@@ -1,0 +1,9 @@
+inspect_ai
+openai
+anthropic
+google-generativeai
+datasets
+langchain==0.2.1
+langchainhub==0.1.16
+langchain-community==0.2.1
+wikipedia==1.4.0
