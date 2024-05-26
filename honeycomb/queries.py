@@ -129,7 +129,6 @@ def critique_scorer(model = "openai/gpt-4-turbo"):
 # sometimes models will enclose the JSON in markdown! (e.g. ```json)
 # this function removes those delimiters should they be there
 def json_completion(completion):
-    import re
     completion = re.sub(r'^```json\n', '', completion.strip())
     completion = re.sub(r'\n```$', '', completion)
     return completion
