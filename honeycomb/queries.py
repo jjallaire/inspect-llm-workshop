@@ -48,7 +48,7 @@ def queries(critique = False):
     # decide on the type of scorer to use
     scorer = critique_scorer() if critique else validation_scorer()
 
-    # create task
+    # create eval task
     return Task(
         dataset=dataset,
         plan=[
