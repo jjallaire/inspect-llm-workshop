@@ -134,5 +134,3 @@ def json_completion(completion):
     completion = re.sub(r'\n```$', '', completion)
     return completion
 
-comp = "```json\n{\"calculations\":[{\"op\":\"COUNT\"}],\"filters\":[{\"column\":\"name\",\"op\":\"=\",\"value\":\"p_cancela_grupos_nao_confirmado\"}],\"time_range\":7200}\n```"
-
