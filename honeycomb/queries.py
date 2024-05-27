@@ -8,12 +8,11 @@ The queries.csv dataset contains ~ 2,300 example queries (along with column
 schemas generated offline via RAG). There are two scoring methods supported
 (corresponding to the two @task definitions below):
 
-1. validate - score using the validity checker from the course (validate.py)
+1. validate - score using the validity checker from the course (utils.py)
 2. critique - score using the critique prompt from the course (critique.txt)
 """
 
 import json
-import re
 
 from inspect_ai import task, Task
 from inspect_ai.dataset import csv_dataset, FieldSpec
@@ -22,7 +21,7 @@ from inspect_ai.scorer import accuracy, scorer, Score, CORRECT, INCORRECT
 from inspect_ai.solver import system_message, generate, solver
 from inspect_ai.util import resource
 
-from validate import is_valid
+from utils import is_valid, json_completion
 
 
 @task
@@ -124,12 +123,4 @@ def critique_scorer(model = "openai/gpt-4-turbo"):
         return Score(value=value, explanation=explanation)
 
     return score
-
-
-# sometimes models will enclose the JSON in markdown! (e.g. ```json)
-# this function removes those delimiters should they be there
-def json_completion(completion):
-    completion = re.sub(r'^```json\n', '', completion.strip())
-    completion = re.sub(r'\n```$', '', completion)
-    return completion
 
