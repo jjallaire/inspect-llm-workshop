@@ -8,6 +8,6 @@ __pycache__/
 .ipynb_checkpoints/
 
 /.quarto/
-/*_files/
-/*.html
+*_files/
+*.html
 *-present.pdf

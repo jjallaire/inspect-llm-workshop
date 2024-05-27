@@ -10,7 +10,7 @@ format:
     height: 759.375
     menu: false
     slide-number: c/t
-    pdf-separate-fragments: false
+    pdf-separate-fragments: true
 ---
 
 ## Inspect
@@ -89,8 +89,6 @@ def validate():
     )
 ```
 
-## {background-image="images/inspect-view-honeycomb-validate.png"}
-
 ## Solver: `prompt_with_schema()`
 
 Simple prompt template that substitutes the user query and the RAG generated column schema.
@@ -112,6 +110,7 @@ def prompt_with_schema():
 
     return solve
 ```
+
 
 ## Scorer: `validate_scorer()`
 
@@ -135,6 +134,13 @@ def validate_scorer():
 
     return score
 ```
+
+## {background-image="images/inspect-view-honeycomb-validate.png" background-size="contain"}
+
+## {background-image="images/inspect-view-honeycomb-validate-prompt.png" background-size="contain"}
+
+## {background-image="images/inspect-view-honeycomb-validate-prompt-2.png" background-size="contain"}
+
 
 ## Honeycomb Eval: `critique()`
 
@@ -163,7 +169,6 @@ def critique():
     )
 ```
 
-## {background-image="images/inspect-view-honeycomb-critique.png"}
 
 ## Scorer: `critique_scorer()`
 
@@ -192,6 +197,10 @@ def critique_scorer(model = "openai/gpt-4-turbo"):
 
     return score
 ```
+
+## {background-image="images/inspect-view-honeycomb-critique.png" background-size="contain"}
+
+## {background-image="images/inspect-view-honeycomb-critique-score.png" background-size="contain"}
 
 ## Solvers
 
