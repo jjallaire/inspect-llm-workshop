@@ -10,7 +10,7 @@ This repository includes the slides and code for the presentation on Inspect giv
 
 | Directory                 | Description                                                                                                                                  |
 |---------------------|---------------------------------------------------|
-| [honeycomb](honeycomb/)   | Evals for for Honeycomb Natural Langaguge Query generator used in the [Fine Tuning LLMs](https://maven.com/parlance-labs/fine-tuning) course |
+| [honeycomb](honeycomb/)   | Evals for for Honeycomb Natural Langaguge Query generator |
 | [langchain](langchain/)   | Demonstrates evaluating a LangChain Agent using Inspect                                                                                      |
 | [benchmarks](benchmarks/) | Implemetnations of some popular benchmarks using Inspect                                                                                     |
 | [slides](slides/)         | Source code and PDF version of workshop slides                                                                                               |
