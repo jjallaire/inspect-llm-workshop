@@ -8,8 +8,8 @@ The queries.csv dataset contains ~ 2,300 example queries (along with column
 schemas generated offline via RAG). There are two scoring methods supported
 (corresponding to the two @task definitions below):
 
-1. @validate - score using the validity checker from the course (validate.py)
-2. @critique - score using the critique prompt from the course (critique.txt)
+1. validate - score using the validity checker from the course (validate.py)
+2. critique - score using the critique prompt from the course (critique.txt)
 """
 
 import json

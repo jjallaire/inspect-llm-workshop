@@ -15,7 +15,7 @@ def is_valid(query_spec:str, columns:str, check_runnable=True):
     try:
         check_query(query_spec, columns, check_runnable)
         return True
-    except InvalidQueryException:
+    except (KeyError, InvalidQueryException):
         return False
 
 def check_query(query_spec:str, columns:str, check_runnable=True):

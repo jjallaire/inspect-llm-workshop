@@ -17,10 +17,18 @@ from inspect_ai.dataset import json_dataset
 from inspect_ai.scorer import model_graded_fact
 from inspect_ai.solver import Solver, solver
 
+@task
+def wikipedia() -> Task:
+    return Task(
+        dataset=json_dataset("wikipedia.jsonl"),
+        plan=wikipedia_search(),
+        scorer=model_graded_fact(),
+    )
 
 @solver
 def wikipedia_search(
-    max_iterations: int | None = 15, max_execution_time: float | None = None
+    max_iterations: int | None = 15, 
+    max_execution_time: float | None = None
 ) -> Solver:
     # standard prompt for functions agent
     prompt = hub.pull("hwchase17/openai-tools-agent")
@@ -49,12 +57,4 @@ def wikipedia_search(
     # return agent function as inspect solver
     return langchain_solver(agent)
 
-
-@task
-def wikipedia() -> Task:
-    return Task(
-        dataset=json_dataset("wikipedia.jsonl"),
-        plan=wikipedia_search(),
-        scorer=model_graded_fact(),
-    )
 
