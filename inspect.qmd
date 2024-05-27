@@ -17,7 +17,7 @@ format:
 
 -   A Python package (`inspect_ai`) used to create LLM evaluations
 
--   Developed and maintained by the [UK AI Safety Institute](https://x.com/AISafetyInst)
+-   Developed and maintained by the [UK AI Safety Institute](https://www.aisi.gov.uk/)
 
 -   Similar in function to the eval frameworks embedded in benchmark suites (e.g. Open AI Evals, Eluether LM Eval Harness, etc.) but designed from the ground up for development of more complex evals
 
