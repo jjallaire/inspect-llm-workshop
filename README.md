@@ -15,4 +15,4 @@ This repository includes the slides and code for the presentation on Inspect giv
 | [benchmarks](benchmarks/) | Implemetnations of some popular benchmarks using Inspect                                                                                     |
 | [slides](slides/)         | Source code and PDF version of workshop slides                                                                                               |
 
-To ensure that you can run the example code in this repo, please install the dependencies using the [requirements.txt](#0) file in the root directory.
+To ensure that you can run the example code in this repo, please install the dependencies using the [requirements.txt](requirements.txt) file in the root directory.
