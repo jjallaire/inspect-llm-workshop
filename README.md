@@ -4,7 +4,7 @@ This repository includes the slides and code for the presentation on Inspect giv
 
 ### Slides
 
-![](https://cdn-icons-png.flaticon.com/256/337/337946.png){width="16"} [Intro to Inspect: Open Source Framework for LLM Evals](slides/intro-to-inspect.pdf)
+<img src=https://cdn-icons-png.flaticon.com/256/337/337946.png" width="16"/> [Intro to Inspect: Open Source Framework for LLM Evals](slides/intro-to-inspect.pdf)
 
 ### Code
 
