@@ -10,3 +10,4 @@ __pycache__/
 /.quarto/
 /*_files/
 /*.html
+*-present.pdf

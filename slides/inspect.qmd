@@ -1,0 +1,779 @@
+---
+title: "Intro to Inspect"
+subtitle: |
+  Open Source Framework for LLM Evals
+author: J.J. Allaire
+date: today
+format:
+   revealjs: 
+    width: 1350  
+    height: 759.375
+    menu: false
+    slide-number: c/t
+    pdf-separate-fragments: false
+---
+
+## Inspect
+
+-   A Python package (`inspect_ai`) used to create LLM evaluations
+
+-   Developed and maintained by the [UK AI Safety Institute](https://www.aisi.gov.uk/)
+
+-   Similar in function to the eval frameworks embedded in benchmark suites (e.g. Open AI Evals, Eluether LM Eval Harness, etc.) but designed from the ground up for development of more complex evals
+
+-   Focus on bridging research and production: provide a great development experience for researchers that results in evals that can be reproducibly run at scale
+
+
+## {background-image="images/inspect-honeycomb-validate.png" background-size="contain"}
+
+## Core Design
+
+::: {style="margin-top: 2rem;"}
+|             |                                                                                                                                                                                                       |
+|-----------------|------------------------------------------------------|
+| **Dataset** | List of samples with `input` and `target`                                                                                                                                                             |
+| **Solvers** | Functions that transform dataset inputs, call the model for generation, and act further on model output. Can be composed together as layers, or can be a single layer with higher internal complexity |
+| **Scorer**  | Evaluates final output of solvers. May use text comparisons, model grading, or other custom schemes                                                                                                   |
+:::
+
+## Hello, World
+
+``` {.python code-line-numbers="|11|12-16|17|20"}
+from inspect_ai import Task, eval, task
+from inspect_ai.dataset import example_dataset
+from inspect_ai.scorer import model_graded_fact
+from inspect_ai.solver import (
+  chain_of_thought, generate, self_critique
+)
+
+@task
+def theory_of_mind():
+  return Task(
+      dataset=example_dataset("theory_of_mind"),
+      plan=[
+          chain_of_thought(), 
+          generate(), 
+          self_critique()
+      ],
+      scorer=model_graded_fact(),
+    )
+
+eval(theory_of_mind, model="openai/gpt-4")
+```
+
+
+## Honeycomb Eval: `validate()`
+
+```{.python code-line-numbers="|3-10|16-20|21"}
+@task
+def validate():
+    # read dataset
+    dataset = csv_dataset(
+        csv_file="queries.csv",
+        sample_fields=FieldSpec(
+            input="user_input",
+            metadata=["columns"]
+        ),
+        shuffle=True
+    )
+
+    # create eval task
+    return Task(
+        dataset=dataset,
+        plan=[
+            system_message("Honeycomb AI suggests queries based on user input."),
+            prompt_with_schema(),
+            generate()
+        ],
+        scorer=validate_scorer()
+    )
+```
+
+## {background-image="images/inspect-view-honeycomb-validate.png"}
+
+## Solver: `prompt_with_schema()`
+
+Simple prompt template that substitutes the user query and the RAG generated column schema.
+
+```{.python code-line-numbers="|7-12"}
+@solver
+def prompt_with_schema():
+
+    prompt_template = resource("prompt.txt")
+
+    async def solve(state, generate):
+        # build the prompt
+        state.user_prompt.text = prompt_template.replace(
+            "{{prompt}}", state.user_prompt.text
+        ).replace(
+            "{{columns}}", state.metadata["columns"]
+        )
+        return state
+
+    return solve
+```
+
+## Scorer: `validate_scorer()`
+
+Call the `is_valid()` function w/ the column schema to determine if a valid query was generated.
+
+```{.python code-line-numbers="|6-11"}
+@scorer(metrics=[accuracy()])
+def validate_scorer():
+
+    async def score(state, target):
+       
+        # check for valid query
+        query = json_completion(state.output.completion)
+        if is_valid(query, state.metadata["columns"]):
+            value=CORRECT
+        else: 
+            value=INCORRECT
+       
+        # return score w/ query that was extracted
+        return Score(value=value, answer=query)
+
+    return score
+```
+
+## Honeycomb Eval: `critique()`
+
+```{.python code-line-numbers="|21"}
+@task
+def critique():
+    # read dataset
+    dataset = csv_dataset(
+        csv_file="queries.csv",
+        sample_fields=FieldSpec(
+            input="user_input",
+            metadata=["columns"]
+        ),
+        shuffle=True
+    )
+
+    # create eval task
+    return Task(
+        dataset=dataset,
+        plan=[
+            system_message("Honeycomb AI suggests queries based on user input."),
+            prompt_with_schema(),
+            generate()
+        ],
+        scorer=critique_scorer()
+    )
+```
+
+## {background-image="images/inspect-view-honeycomb-critique.png"}
+
+## Scorer: `critique_scorer()`
+
+```{.python code-line-numbers="|2|5-13|15-19"}
+@scorer(metrics=[accuracy()])
+def critique_scorer(model = "openai/gpt-4-turbo"):
+
+    async def score(state, target):
+        # build the critic prompt
+        query = state.output.completion.strip()
+        critic_prompt = resource("critique.txt").replace(
+            "{{prompt}}", state.user_prompt.text
+        ).replace(
+            "{{columns}}", state.metadata["columns"]
+        ).replace(
+            "{{query}}", query
+        )
+       
+        # run the critique
+        result = await get_model(model).generate(critic_prompt)
+        parsed = json.loads(json_completion(result.completion))
+        value = CORRECT if parsed["outcome"] == "good" else INCORRECT
+        explanation = parsed["critique"]
+        
+        return Score(value=value, explanation=explanation)
+
+    return score
+```
+
+## Solvers
+
+A Solver is a Python function that tasks a `TaskState` and transforms it in some useful fashion
+
+::: aside
+Solver concept was borrowed from Open AI Evals and made more general in Inspect
+:::
+
+::: fragment
+**TaskState** (initialised from sample)
+
+``` python
+class TaskState:
+    messages: list[ChatMessage]
+    output: ModelOutput
+    ...
+```
+:::
+
+::: fragment
+**Solver Function**
+
+``` python
+async def solve(state: TaskState, generate: Generate) -> TaskState:
+    # do something useful with state (prompt engineering,
+    # generating model output, critique and regenerate, etc.) 
+    return state
+```
+:::
+
+## Baseline Solvers
+
+::: fragment
+`prompt_template()`
+
+``` python
+async def solve(state: TaskState, generate: Generate) -> TaskState:
+    prompt = state.user_prompt
+    prompt.text = prompt_template.format(prompt=prompt.text, **params)
+    return state
+```
+
+Modifies the existing prompt by passing it through a template
+:::
+
+::: {.fragment style="margin-top: 2rem;"}
+`generate()`
+
+``` python
+async def solve(state: TaskState, generate: Generate) -> TaskState:
+    return await generate(state)
+```
+
+Calls the model, appends the assistant message, and updates the model output
+:::
+
+## Solver: `multiple_choice()`
+
+Prompt with several choices (optionally shuffled)
+
+``` python
+async def solve(state: TaskState, generate: Generate) -> TaskState:
+
+    # build choices str and key
+    choices_str, choices_key = make_choices(choices=state.choices)
+
+    # re-write prompt with A,B,C,... choices
+    state.user_prompt.text = template.format(
+        question=state.user_prompt.text,
+        choices=choices_str,
+    )
+
+    # generate
+    state = await generate(state, temperature=0.0, max_tokens=1)
+
+    # map the output back to the right index and return
+    state.output.completion = choices_key[state.output.completion]
+
+    return state
+```
+
+## Solver: `self_critique()`
+
+Critique the generated response (possibly with another model), then re-generate in response to the critique.
+
+```{.python code-line-numbers="|3-8|10-16|18"}
+async def solve(state: TaskState, generate: Generate) -> TaskState:
+    
+    critique = await model.generate(
+        critique_template.format(
+            question=state.input_text,
+            completion=state.output.completion,
+        )
+    )
+
+    state.messages.append(ChatMessageUser(
+        content=completion_template.format(
+            question=state.input_text,
+            completion=state.output.completion,
+            critique=critique.completion,
+        ),
+    ))
+
+    return await generate(state)
+```
+
+## Composition
+
+Eval development frequently involves creating custom solvers and scorers. If made available in a Python package these can re-used across many evals
+
+::: fragment
+Some jailbreaking solvers from an internal **sheppard** package:
+
+|                       |                                     |
+|-----------------------|-------------------------------------|
+| `encode()`            | Message obfuscation jailbreak       |
+| `pap_jailbreak()`     | Persuasion Adversarial Prompt (PAP) |
+| `payload_splitting()` | PARROT jailbreak                    |
+| `cr_jailbreak()`      | Content reinforcement               |
+:::
+
+## Composition
+
+Using **sheppard** to provide jailbreaks for a security eval:
+
+```{.python code-line-numbers="|5|11-15"}
+from inspect_ai import Task, eval, task
+from inspect_ai.scorer import model_graded_fact
+from inspect_ai.solver import generate, system_message
+
+from sheppard import pap_jailbreak
+
+@task
+def security_guide():
+    return Task(
+        dataset=example_dataset("security_guide"),
+        plan=[
+          system_message("system.txt"), 
+          pap_jailbreak(),
+          generate()
+        ],
+        scorer=model_graded_fact(model="openai/gpt-4"),
+    )
+```
+
+## Tool Use
+
+::: fragment
+`TaskState` also includes tools:
+
+``` {.python code-line-numbers="3-4"}
+class TaskState:
+    messages: list[ChatMessage]
+    tools: list[ToolDef]
+    tool_choice: ToolChoice
+    output: ModelOutput
+    ...
+```
+:::
+
+::: fragment
+`use_tools()` makes tools available to `generate()`:
+
+``` {.python code-line-numbers="3-6"}
+return Task(
+    dataset=example_dataset("biology_qa"),
+    plan=[
+        use_tools(web_search()), 
+        generate()
+    ],
+    scorer=model_graded_qa(template=GRADER_TEMPLATE),
+)
+```
+:::
+
+
+## Agents and Tools
+
+- Many permutations of agents and tool use are possible
+
+> - Bespoke agent logic inside a solver (swapping various tools in and out)
+
+> - Bridges to various agent libraries are as solvers (e.g. `langchain_agent()`, `langroid_agent()`, etc.)
+
+
+
+## Agent: Capture the Flag
+
+Cybersecurity eval using hand-rolled agent loop (custom agents and agent frameworks can both be embedded in solvers)
+
+``` {.python code-line-numbers="|4-8|12"}
+Plan(
+    steps=[
+        init_challenge(),
+        use_tools([
+            command_exec(), create_file(),
+            decompile(), disassemble(),
+            check_flag(),
+        ]),
+        system_message("prompts/system.txt"),
+        initial_user_message(),
+        generate(),
+        check_for_flag_or_continue()
+    ],
+    cleanup=exit_challenge()
+)
+```
+
+## Agent: LangChain
+
+Convert any LangChain agent into a Solver
+
+```{.python code-line-numbers="|4-6|8-15|17"}
+@solver
+def wikipedia_search() -> Solver:
+  
+    tavily_api = TavilySearchAPIWrapper() 
+    tools = ([TavilySearchResults(api_wrapper=tavily_api)] + 
+        load_tools(["wikipedia"]))
+    
+    async def agent(llm: BaseChatModel, input: dict[str, Any]):
+        tools_agent = create_openai_tools_agent(llm, tools, prompt)
+        agent_executor = AgentExecutor.from_agent_and_tools(
+            agent=tools_agent,
+            tools=tools
+        )
+        result = await agent_executor.ainvoke(input)
+        return result["output"]
+    
+    return langchain_solver(agent)
+```
+
+## {background-image="images/inspect-wikipedia-eval.png" background-size="contain"}
+
+## {background-image="images/inspect-wikipedia-messages.png" background-size="contain"}
+
+## {background-image="images/inspect-wikipedia-scoring.png" background-size="contain"}
+
+## {background-image="images/inspect-wikipedia-explanation.png" background-size="contain"}
+
+## Scoring
+
+::: incremental
+-  Conventional pattern matching / templated answer based scoring built in.
+
+-  Model graded scorer built-in (often heavily customized)
+
+-  Scorers also pluggable (i.e. provided from other packages). We expect lots of innovation in model graded scoring!
+
+-  Offline / human scoring workflow is supported.
+
+-  Plan to build tools to help rigerously evaluate model graded scorers against human baselines.
+:::
+
+## {background-image="images/inspect-mathmatics.png" background-size="contain"}
+
+## Scorer: `expression_equivalence()`
+
+```{.python code-line-numbers="|8-13" }
+@scorer(metrics=[accuracy(), bootstrap_std()])
+def expression_equivalance():
+    async def score(state: TaskState, target: Target):
+
+        # extract answer
+        match = re.search(AnswerPattern.LINE, state.output.completion)
+       
+        # ask the model to judge equivalance
+        answer = match.group(1)
+        prompt = EQUIVALANCE_TEMPLATE % (
+            {"expression1": target.text, "expression2": answer}
+        )
+        result = await get_model().generate(prompt)
+
+        # return the score
+        correct = result.completion.lower() == "yes"
+        return Score(
+            value=CORRECT if correct else INCORRECT,
+            answer=answer,
+            explanation=state.output.completion,
+        )
+
+    return score
+```
+
+## Logging
+
+-   Capture all context required to debug, analyse, and reproduce evaluations
+
+-   Python API for computing on log file contents
+
+-   Log viewer for interactive exploration of eval results
+
+## `EvalLog` {.smaller}
+
+|           |                        |                                                                        |
+|-------------------|-------------------|----------------------------------|
+| `status`  | `str`                  | Status of evaluation                                                   |
+| `eval`    | `EvalSpec`             | Top level eval details including task, model, creation time, etc.      |
+| `plan`    | `EvalPlan`             | List of solvers and model generation config used for the eval.         |
+| `samples` | `list[EvalSample]`     | Each sample evaluated, including its input, output, target, and score. |
+| `results` | `EvalResults`          | Aggregated scorer results                                              |
+| `stats`   | `EvalStats`            | Model token usage stats                                                |
+| `logging` | `list[LoggingMessage]` | Logging messages (e.g. from `log.info()`, `log.debug()`, etc.          |
+| `error`   | `EvalError`            | Error information                                                      |
+
+## Log Viewer: Samples
+
+![](images/inspect-view-answers.png){.border}
+
+## Log Viewer: Messages
+
+![](images/inspect-view-messages.png){.border}
+
+
+## Log Viewer: Scoring
+
+![](images/inspect-view-scoring.png){.border}
+
+## Models {.smaller}
+
+
+| Provider     | Model Name                        | Docs                                                                                            |
+|-------------------|---------------------------|---------------------------|
+| OpenAI       | `openai/gpt-3.5-turbo`            | [OpenAI Models](https://platform.openai.com/docs/models/overview)                               |
+| Anthropic    | `anthropic/claude-3-sonnet-20240229`            | [Anthropic Models](https://docs.anthropic.com/claude/docs/models-overview)                      |
+| Google       | `google/gemini-1.0-pro`           | [Google Models](https://cloud.google.com/vertex-ai/generative-ai/docs/learn/models)             |
+| Mistral      | `mistral/mistral-large-latest`    | [Mistral Models](https://docs.mistral.ai/platform/endpoints/)                                   |
+| Hugging Face | `hf/openai-community/gpt2`        | [Hugging Face Models](https://huggingface.co/models?pipeline_tag=text-generation&sort=trending) |
+| Ollama       | `ollama/llama3`                   | [Ollama Models](https://ollama.com/library)                                                     |
+| TogetherAI   | `together/lmsys/vicuna-13b-v1.5`  | [TogetherAI Models](https://docs.together.ai/docs/inference-models#chat-models)                 |
+| AWS Bedrock  | `bedrock/meta.llama2-70b-chat-v1` | [AWS Bedrock Models](https://aws.amazon.com/bedrock/)                                           |
+| Azure AI     | `azureai/azure-deployment-name`   | [Azure AI Models](https://ai.azure.com/explore/models)                                          |
+| Cloudflare   | `cf/meta/llama-2-7b-chat-fp16`    | [Cloudflare Models](https://developers.cloudflare.com/workers-ai/models/#text-generation)       |
+
+: {tbl-colwidths="\[18,45,37\]"}
+
+::: {.fragment style="margin-top: 30px; font-weight: 400;"}
+Interface with any other model by creating a custom model provider...
+:::
+
+## Workflow
+
+-   Lots of interactive exploration occurs during eval development, so critical to have good support for iterating in a Notebook / REPL
+
+-   Eventually though, evals need to end up in a form that enables reproducibly running them in an eval suite
+
+-   Need to support a continuum of workflows that transition well into each other
+
+-   Provide good tooling in Jupyter and VS Code for entire spectrum
+
+## {background-image="images/inspect-notebook-eval.png" background-size="contain"}
+
+## Interactive Exploration
+
+Ad-hoc exploration of an eval in a Notebook/REPL
+
+```{.python code-line-numbers="|1-6|8-12|14-15"}
+params = {
+   "system": ["devops.txt", "researcher.txt"],
+   "grader": ["hacker.txt", "expert.txt"],
+   "grader_model": ["openai/gpt-4", "google/gemini-1.0-pro"]
+}
+params = list(product(*(params[name] for name in params)))
+
+tasks = [Task(
+    dataset=json_dataset("security_guide.jsonl"),
+    plan=[system_message(system), generate()],
+    scorer=model_graded_fact(template=grader, model=grader_model)
+) for system, grader, grader_model in params]
+
+logs = eval(tasks, model = "mistral/mistral-large-latest")
+plot_results(logs)
+```
+
+## Task Parameters
+
+Formalise variation with a parameterised `@task` function:
+
+```{.python code-line-numbers="|1-7|9-16"}
+@task
+def security_guide(system="devops.txt", grader="expert.txt"):
+   return Task(
+      dataset = json_dataset("security_guide.jsonl"),
+      plan=[system_message(system), generate()],
+      scorer=model_graded_fact(template=grader, model="openai/gpt-4")
+   )
+
+params = {
+   "system": ["devops.txt", "researcher.txt"],
+   "grader": ["hacker.txt", "expert.txt"]
+}
+params = list(product(*(params[name] for name in params)))
+
+eval([security_guide(system,grader) for system, grader in params],
+     model = "mistral/mistral-large-latest")
+```
+
+## Task Parameters
+
+`@task` functions are registered and addressable by external driver programs (step one in development =\> production)
+
+``` python
+@task
+def security_guide(system="devops.txt", grader="expert.txt"):
+    return Task(
+        dataset = json_dataset("security_guide.jsonl"),
+        plan=[system_message(system), generate()],
+        scorer=model_graded_fact(
+            template=grader, 
+            model="openai/gpt-4"
+        )
+    )
+```
+
+::: fragment
+Now we can vary the parameters externally:
+
+``` {.bash code-line-numbers="true"}
+$ inspect eval security_guide.py -T system=devops.txt 
+$ inspect eval security_guide.py -T grader=hacker.txt 
+```
+:::
+
+::: fragment
+Same workflow available for tasks in a notebook:
+
+``` {.bash code-line-numbers="true"}
+$ inspect eval security_guide.ipynb -T system=devops.txt 
+$ inspect eval security_guide.ipynb -T grader=hacker.txt 
+```
+:::
+
+## Task Variants
+
+We may discover that we *always* want to vary a parameter when running a full evaluation suite:
+
+``` python
+def security_guide(system, grader="expert.txt"):
+   return Task(
+      dataset = json_dataset("security_guide.jsonl"),
+      plan=[system_message(system), generate()],
+      scorer=model_graded_fact(template=grader, model="openai/gpt-4")
+   )
+
+@task
+def devops()
+   return security_guide("devops.txt")
+
+@task
+def researcher()
+   return security_guide("researcher.txt")
+```
+
+
+::: fragment
+Invoke by task name
+
+``` {.bash code-line-numbers="true"}
+$ inspect eval security_guide.py@devops
+$ inspect eval security_guide.py@researcher
+```
+:::
+
+
+## Eval Suites
+
+We want to allow for arbitrary source code organisation but still be able to discover and enumerate tasks for a suite
+
+::: columns
+::: {.column .fragment}
+``` {.bash code-line-numbers="true"}
+security/
+  jeopardy/
+    import.py
+    analyze.py
+    task.py
+  attack_defense/
+    import.py
+    analyze.py
+    task.py
+```
+:::
+
+::: {.column .fragment}
+``` {.python code-line-numbers="true"}
+list_tasks("security")
+
+jeopardy/task.py@crypto
+jeopardy/task.py@decompile
+jeopardy/task.py@packet
+jeopardy/task.py@heap_trouble
+attack_defense/task.py@saar
+attack_defense/task.py@bank
+attack_defense/task.py@voting
+```
+:::
+:::
+
+::: {.fragment style="margin-top: 25px;"}
+Run them all
+
+``` {.python code-line-numbers="true"}
+eval(list_tasks("security"), model="mistral/mistral-large-latest")
+```
+:::
+
+## Resiliency
+
+The production version would look more like this:
+
+``` python
+# setup log context
+os.environ["INSPECT_LOG_DIR"] = "./security-suite_04-07-2024"
+
+# run the eval suite
+tasks = list_tasks("security")
+eval(tasks, model="mistral/mistral-large-latest")
+
+# ...later, in another process that also has INSPECT_LOG_DIR
+error_logs = list_eval_logs(status == "error")
+eval_retry(error_logs)
+```
+
+::: {.fragment style="margin-top: 30px;"}
+Somewhat oversimplified, as we'd also want to enhance the logic around analysing the cause of errors and adopting optimal recovery strategies
+:::
+
+## Provenance
+
+If you run an eval from a Git repository, you should be able to reproduce the eval with only its log file as context
+
+::: fragment
+``` {.python code-line-numbers="|1-4|6-11"}
+# read the log and extract the origin and commit
+log = read_eval_log("security-log.json")
+origin = log.spec.revision.origin
+commit = log.spec.revision.commit
+
+# clone the repo, checkout the commit, install deps, and run
+run(["git", "clone", revision.origin, "eval-dir"])
+with chdir("eval-dir"):
+   run(["git", "checkout", revision.commit])
+   run(["pip", "install", "-r", "requirements.txt"])
+   eval(log) 
+```
+:::
+
+
+## Learning More
+
+- Docs: <https://ukgovernmentbeis.github.io/inspect_ai>
+
+- GitHub: <https://github.com/ukgovernmentbeis/inspect_ai>
+
+- Slides/Code: <https://github.com/jjallaire/inspect-llm-workshop>
+
+#### Questions?
+
+
+
+```{=html}
+<style type="text/css">
+.code-commentary {
+  font-size: 2rem;
+}
+
+.print-pdf pre.numberSource code>span {
+  left: -7em !important;
+}
+
+.reveal pre.sourceCode code {
+  max-height: 650px;
+}
+
+.border {
+    border: 1px solid lightgrey;
+}
+
+#core-design td {
+    padding-top: 1em;
+    padding-bottom: 1em;
+}
+</style>
+```
